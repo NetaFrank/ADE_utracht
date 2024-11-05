@@ -209,26 +209,75 @@ def plot_hydraulic_head(h, x, y):
 
 
 # Function to plot velocity field
-def plot_velocity_field(x, y, v_x, v_y):
+def plot_velocity_field(x, y, v_x, v_y, skip=10):
+    # Generate meshgrid for plotting
+    X, Y = np.meshgrid(x, y)
+
+    # Downsample data for clarity in the quiver plot
+    X_downsampled = X[::skip, ::skip]
+    Y_downsampled = Y[::skip, ::skip]
+    v_x_downsampled = v_x[::skip, ::skip]
+    v_y_downsampled = v_y[::skip, ::skip]
+
+    # Calculate the velocity magnitude for colormap
+    velocity_magnitude = np.sqrt(v_x ** 2 + v_y ** 2)
+    velocity_magnitude_downsampled = velocity_magnitude[::skip, ::skip]
+
+    # Create the quiver plot with a jet colormap
     plt.figure()
-    plt.quiver(x[::10], y[::10], v_x[::10, ::10], v_y[::10, ::10])
+    quiver_plot = plt.quiver(X_downsampled, Y_downsampled, v_x_downsampled, v_y_downsampled,
+                             velocity_magnitude_downsampled, cmap='jet')
+
+    # Add colorbar for the velocity magnitude
+    cbar = plt.colorbar(quiver_plot)
+    cbar.set_label('Velocity Magnitude [m/s]')
+
+    # Set labels and title
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
     plt.title('Velocity Field')
-    # plt.axis('equal')
     plt.show()
 
 
 # Function to plot absolute velocity field
 def plot_absolute_velocity(x, y, v_x, v_y):
+    # Calculate the absolute velocity magnitude and take log10
     abs_velocity = np.sqrt(v_x ** 2 + v_y ** 2)
+    log_abs_velocity = np.log10(abs_velocity)
+
+    # Create the plot
     plt.figure()
-    plt.imshow(np.log10(np.flipud(abs_velocity)), extent=[x[0], x[-1], y[0], y[-1]], aspect='auto', cmap='jet')
-    plt.colorbar(label='log10 Absolute Velocity')
+    plt.imshow(np.flipud(log_abs_velocity), extent=(x.min(), x.max(), y.min(), y.max()), aspect='auto', cmap='jet')
+
+    # Add colorbar for the velocity magnitude
+    cbar = plt.colorbar()
+    cbar.set_label('Log10 of Absolute Velocity Magnitude')
+
+    # Set labels and title
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
-    plt.title('Absolute Velocity Field')
-    # plt.axis('equal')
+    plt.title('Abs Velocity Field')
+    plt.show()
+
+
+def plot_vy_velocity_field(x, y, v_y):
+
+    # Take the absolute values of v_y and apply log10 scaling
+    abs_vy = np.abs(v_y)
+    log_vy = np.log10(abs_vy + 1e-10)  # Small offset to avoid log of zero
+
+    # Create the plot
+    plt.figure()
+    plt.imshow(np.flipud(log_vy), extent=(x.min(), x.max(), y.min(), y.max()), aspect='auto', cmap='jet')
+
+    # Add colorbar for the v_y magnitude
+    cbar = plt.colorbar()
+    cbar.set_label('Log10 of |v_y|')
+
+    # Set labels and title
+    plt.xlabel('x [m]')
+    plt.ylabel('y [m]')
+    plt.title('v_y Velocity Field')
     plt.show()
 
 
@@ -310,4 +359,6 @@ if __name__ == "__main__":
     num_snapshots = 10
 
     plot_velocity_field(x, y, v_x, v_y)
+    plot_absolute_velocity(x, y, v_x, v_y)
+    plot_vy_velocity_field(x, y, v_y)
     c_matrix = calc(Lx, Ly, T, v_x, v_y, D, Nx, Ny, K, num_snapshots)
