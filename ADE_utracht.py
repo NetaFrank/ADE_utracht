@@ -8,6 +8,7 @@ import pandas as pd
 from matplotlib.animation import FFMpegWriter
 import numpy as np
 from numba import njit
+from matplotlib.colors import LogNorm
 
 
 def define_properties(Ny, Nx, load_data):
@@ -15,7 +16,8 @@ def define_properties(Ny, Nx, load_data):
     if load_data == 1:
         # Load K_matrix from a CSV file
         k_matrix = pd.read_csv(
-            r"C:\Users\neta\OneDrive - Technion\Desktop\Technion\MSC\ADE_yaniv\OneDrive_1_11-2-2024\k_matrix.csv", header=None).values
+            r"C:\Users\neta\OneDrive - Technion\Desktop\Technion\MSC\ADE_yaniv\OneDrive_1_11-2-2024\k_matrix.csv",
+            header=None).values
 
         phi_matrix = pd.read_csv(
             r"C:\Users\neta\OneDrive - Technion\Desktop\Technion\MSC\ADE_yaniv\OneDrive_1_11-2-2024\phi_matrix.csv",
@@ -140,7 +142,7 @@ def calc(Lx, Ly, T, vx, vy, D, Nx, Ny, K,
     dt = T / K  # Time step size [min]
 
     # Initialize two matrices for current and next time steps
-    c_current = np.zeros((Nx + 2, Ny + 2))  # larger domain for numeric solution
+    c_current = np.zeros((Ny + 1, Nx + 1))  # larger domain for numeric solution
     c_next = np.zeros_like(c_current)  # for the next time step
 
     # Initial condition - everything is zero
@@ -154,7 +156,7 @@ def calc(Lx, Ly, T, vx, vy, D, Nx, Ny, K,
     gamma_y = np.full_like(c_current, (D * dt / dx ** 2)) + 0.1 * gamma_x
 
     # Preallocate a 3D array to store every 10th c_current
-    c_matrix = np.zeros((num_snapshots, Nx + 2, Ny + 2))  # Preallocate 3D array for snapshots
+    c_matrix = np.zeros((num_snapshots, Ny + 1, Nx + 1))  # Preallocate 3D array for snapshots
 
     # Time-stepping with Euler methodS
 
@@ -192,7 +194,7 @@ def calc(Lx, Ly, T, vx, vy, D, Nx, Ny, K,
         if k * dt < 10:
             c_current[:, 1] = c_inlet
 
-    return c_matrix[:, 1:, 1:]  # remove the first not relevant column and raw
+    return c_matrix[:, :, :]  # remove the first not relevant column and raw
 
 
 # Function to plot hydraulic head distribution
@@ -261,7 +263,6 @@ def plot_absolute_velocity(x, y, v_x, v_y):
 
 
 def plot_vy_velocity_field(x, y, v_y):
-
     # Take the absolute values of v_y and apply log10 scaling
     abs_vy = np.abs(v_y)
     log_vy = np.log10(abs_vy + 1e-10)  # Small offset to avoid log of zero
@@ -282,14 +283,14 @@ def plot_vy_velocity_field(x, y, v_y):
 
 
 # Function to plot concentration at a specific time
-def plot_concentration_at_time(c_matrix, x, y, time_step, time_value):
+def plot_concentration_at_time(c_matrix, x, y, time_step):
     plt.figure()
     plt.imshow(np.log10(np.flipud(c_matrix[time_step, :, :])), extent=[x[0], x[-1], y[0], y[-1]], aspect='auto',
                cmap='jet')
     plt.colorbar(label='log10 Concentration')
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
-    plt.title(f'Concentration at Time = {time_value:.2f} [Days]')
+    plt.title(f'Concentration at Time = {t:time_step:.2f} [Days]')
     # plt.axis('equal')
     plt.show()
 
@@ -334,6 +335,30 @@ def plot_animation(c_matrix, x, y, T, K):
     plt.close(fig)
 
 
+def save_frame_at_time_step(c_matrix, x, y, T, time_step, num_snapshots, dpi=100):
+    t = np.linspace(0, T, num_snapshots)
+    X, Y = np.meshgrid(y, x, indexing='ij')
+
+    fig, ax = plt.subplots(dpi=dpi)  # Automatically sized figure
+
+    # Use LogNorm to apply a logarithmic scale to the color mapping
+    contour = ax.contourf(X, Y, c_matrix[time_step, :, :], cmap='jet', norm=LogNorm())
+
+    plt.colorbar(contour, ax=ax)
+    plt.gca().set_aspect('equal', adjustable='box')
+    ax.set_xlim([0, np.max(x)])  # Set limits based on the max values in x and y
+    ax.set_ylim([0, np.max(y)])
+
+    ax.spines['top'].set_visible(False)
+    ax.set_xlabel('x [cm]')
+    ax.set_ylabel('y [cm]')
+
+    # Save the plot to a file with specified dpi
+    filename = f"frame_at_time_{t[time_step]:.2f}_min_log_scale.png"
+    plt.savefig(filename, dpi=dpi)
+    plt.close(fig)  # Close the figure to free memory
+    print(f"Saved: {filename}")
+
 if __name__ == "__main__":
     # Defining Parameters
 
@@ -357,8 +382,12 @@ if __name__ == "__main__":
     [h, v_x, v_y] = flow_solver(Lx, Ly, Nx, Ny, head_diff, k_matrix)
 
     num_snapshots = 10
+    time_step = list(range(num_snapshots))
 
-    plot_velocity_field(x, y, v_x, v_y)
-    plot_absolute_velocity(x, y, v_x, v_y)
-    plot_vy_velocity_field(x, y, v_y)
+    # plot_velocity_field(x, y, v_x, v_y)
+    # plot_absolute_velocity(x, y, v_x, v_y)
+    # plot_vy_velocity_field(x, y, v_y)
     c_matrix = calc(Lx, Ly, T, v_x, v_y, D, Nx, Ny, K, num_snapshots)
+    for t in range(len(time_step)):
+        save_frame_at_time_step(c_matrix, x, y, T, int(time_step[t]), num_snapshots)
+        # plot_concentration_at_time(c_matrix, x, y, time_step)
